@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -29,13 +30,13 @@ func (s *Storage) GetCertificateFunc(clientHello *tls.ClientHelloInfo) (*tls.Cer
 
 	// First, try to read the certificate from the cache under a read lock.
 	s.mutex.RLock()
-	cert, exists := s.certs[domain]
+	cert := s.findCertificate(domain)
 	s.mutex.RUnlock()
-	if exists {
+	if cert != nil {
 		return cert, nil
 	}
 
-	return nil, fmt.Errorf("error cert for %s not find", domain)
+	return nil, fmt.Errorf("certificate not found for domain %q", domain)
 }
 
 func (s *Storage) loadCerts() error {
@@ -70,6 +71,27 @@ func (s *Storage) Init(diskInfo []CertSource) error {
 	s.certsDiscInfo = diskInfo
 	s.mutex.Unlock()
 	return s.loadCerts()
+}
+
+func (s *Storage) findCertificate(domain string) *tls.Certificate {
+	if cert := s.certs[domain]; cert != nil {
+		return cert
+	}
+
+	for {
+		idx := strings.Index(domain, ".")
+		if idx < 0 {
+			break
+		}
+
+		domain = domain[idx+1:]
+
+		if cert := s.certs["*."+domain]; cert != nil {
+			return cert
+		}
+	}
+
+	return nil
 }
 
 // getDomains returns the domain names found in the given tls.Certificate.
