@@ -55,9 +55,9 @@ func (s *Storage) loadCerts() error {
 			certs[d] = &loadedCert
 		}
 	}
-	s.mutex.RLock()
+	s.mutex.Lock()
 	s.certs = certs
-	s.mutex.RUnlock()
+	s.mutex.Unlock()
 	return nil
 }
 
