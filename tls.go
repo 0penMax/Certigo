@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -47,7 +48,7 @@ func (s *Storage) loadCerts() error {
 			return fmt.Errorf("error loading cert %s or %s: %w", path.PublicKeyPath, path.PrivateKeyPath, err)
 		}
 
-		domains, err := getDomains(loadedCert)
+		domains, err := getDomains(&loadedCert)
 		if err != nil {
 			return fmt.Errorf("error read domains from certs for %s: %w", path.PublicKeyPath, err)
 		}
@@ -95,7 +96,7 @@ func (s *Storage) findCertificate(domain string) *tls.Certificate {
 }
 
 // getDomains returns the domain names found in the given tls.Certificate.
-func getDomains(cert tls.Certificate) ([]string, error) {
+func getDomains(cert *tls.Certificate) ([]string, error) {
 	// Parse the first certificate if cert.Leaf is nil.
 	var xcert *x509.Certificate
 	if cert.Leaf != nil {
@@ -111,16 +112,13 @@ func getDomains(cert tls.Certificate) ([]string, error) {
 		}
 	}
 
-	// Collect domain names.
-	var domains []string
-
-	// The Common Name is historically where the primary domain is stored.
-	if xcert.Subject.CommonName != "" {
-		domains = append(domains, xcert.Subject.CommonName)
+	if len(xcert.DNSNames) > 0 {
+		return slices.Clone(xcert.DNSNames), nil
 	}
 
-	// Additionally, the SANs (DNSNames) field might contain extra domains.
-	domains = append(domains, xcert.DNSNames...)
+	if xcert.Subject.CommonName != "" {
+		return []string{xcert.Subject.CommonName}, nil
+	}
 
-	return domains, nil
+	return nil, fmt.Errorf("certificate contains no DNS names")
 }
