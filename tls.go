@@ -3,6 +3,7 @@ package certigo
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"sync"
 )
@@ -10,13 +11,12 @@ import (
 type Storage struct {
 	mutex         sync.RWMutex
 	certs         map[string]*tls.Certificate
-	certsDiscInfo []TlsCertsDiscInfo
+	certsDiscInfo []CertSource
 }
 
-type TlsCertsDiscInfo struct {
-	Public  string
-	Private string
-	Domain  string
+type CertSource struct {
+	PublicKeyPath  string
+	PrivateKeyPath string
 }
 
 // GetCertificateFunc is used to either retrieve or load and cache the certificate.
@@ -41,14 +41,14 @@ func (s *Storage) GetCertificateFunc(clientHello *tls.ClientHelloInfo) (*tls.Cer
 func (s *Storage) loadCerts() error {
 	certs := make(map[string]*tls.Certificate)
 	for _, path := range s.certsDiscInfo {
-		loadedCert, err := tls.LoadX509KeyPair(path.Public, path.Private)
+		loadedCert, err := tls.LoadX509KeyPair(path.PublicKeyPath, path.PrivateKeyPath)
 		if err != nil {
-			return fmt.Errorf("error loading cert %s or %s: %w", path.Public, path.Private, err)
+			return fmt.Errorf("error loading cert %s or %s: %w", path.PublicKeyPath, path.PrivateKeyPath, err)
 		}
 
 		domains, err := getDomains(loadedCert)
 		if err != nil {
-			return fmt.Errorf("error read domains from certs for %s: %w", path.Domain, err)
+			return fmt.Errorf("error read domains from certs for %s: %w", path.PublicKeyPath, err)
 		}
 
 		for _, d := range domains {
@@ -65,7 +65,7 @@ func (s *Storage) ReloadCerts() error {
 	return s.loadCerts()
 }
 
-func (s *Storage) Init(diskInfo []TlsCertsDiscInfo) error {
+func (s *Storage) Init(diskInfo []CertSource) error {
 	s.mutex.Lock()
 	s.certsDiscInfo = diskInfo
 	s.mutex.Unlock()
@@ -79,6 +79,9 @@ func getDomains(cert tls.Certificate) ([]string, error) {
 	if cert.Leaf != nil {
 		xcert = cert.Leaf
 	} else {
+		if len(cert.Certificate) == 0 {
+			return nil, errors.New("certificate chain is empty")
+		}
 		var err error
 		xcert, err = x509.ParseCertificate(cert.Certificate[0])
 		if err != nil {
