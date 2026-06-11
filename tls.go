@@ -43,7 +43,7 @@ func (s *Storage) GetCertificateFunc(clientHello *tls.ClientHelloInfo) (*tls.Cer
 func (s *Storage) loadCerts() error {
 	certs := make(map[string]*tls.Certificate)
 	for _, path := range s.certsDiscInfo {
-		loadedCert, err := tls.LoadX509KeyPair(path.PublicKeyPath, path.PrivateKeyPath)
+		loadedCert, err := tls.LoadX509KeyPair(path.PrivateKeyPath, path.PublicKeyPath)
 		if err != nil {
 			return fmt.Errorf("error loading cert %s or %s: %w", path.PublicKeyPath, path.PrivateKeyPath, err)
 		}
