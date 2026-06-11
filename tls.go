@@ -17,8 +17,8 @@ type Storage struct {
 }
 
 type CertSource struct {
-	PublicKeyPath  string
-	PrivateKeyPath string
+	FullChainPath string
+	PrivKeyPath   string
 }
 
 // GetCertificateFunc is used to either retrieve or load and cache the certificate.
@@ -43,14 +43,14 @@ func (s *Storage) GetCertificateFunc(clientHello *tls.ClientHelloInfo) (*tls.Cer
 func (s *Storage) loadCerts() error {
 	certs := make(map[string]*tls.Certificate)
 	for _, path := range s.certsDiscInfo {
-		loadedCert, err := tls.LoadX509KeyPair(path.PrivateKeyPath, path.PublicKeyPath)
+		loadedCert, err := tls.LoadX509KeyPair(path.FullChainPath, path.PrivKeyPath)
 		if err != nil {
-			return fmt.Errorf("error loading cert %s or %s: %w", path.PublicKeyPath, path.PrivateKeyPath, err)
+			return fmt.Errorf("error loading cert %s or %s: %w", path.FullChainPath, path.PrivKeyPath, err)
 		}
 
 		domains, err := getDomains(&loadedCert)
 		if err != nil {
-			return fmt.Errorf("error read domains from certs for %s: %w", path.PublicKeyPath, err)
+			return fmt.Errorf("error read domains from certs for %s: %w", path.FullChainPath, err)
 		}
 
 		for _, d := range domains {
